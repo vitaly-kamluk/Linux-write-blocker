@@ -1,0 +1,42 @@
+diff --git a/block/blk-core.c b/block/blk-core.c
+index 923b7d91e6dc..bc77e698487e 100644
+--- a/block/blk-core.c
++++ b/block/blk-core.c
+@@ -499,14 +499,14 @@ static int __init fail_make_request_debugfs(void)
+ late_initcall(fail_make_request_debugfs);
+ #endif /* CONFIG_FAIL_MAKE_REQUEST */
+
+-static inline void bio_check_ro(struct bio *bio)
++static inline bool bio_check_ro(struct bio *bio)
+ {
+     if (op_is_write(bio_op(bio)) && bdev_read_only(bio->bi_bdev)) {
+         if (op_is_flush(bio->bi_opf) && !bio_sectors(bio))
+-            return;
++            return false;
+
+         if (bio->bi_bdev->bd_ro_warned)
+-            return;
++            return true;
+
+         bio->bi_bdev->bd_ro_warned = true;
+         /*
+@@ -515,7 +515,9 @@ static inline void bio_check_ro(struct bio *bio)
+          */
+         pr_warn("Trying to write to read-only block-device %pg\n",
+             bio->bi_bdev);
++        return true;
+     }
++    return false;
+ }
+
+ static noinline int should_fail_bio(struct bio *bio)
+@@ -746,7 +748,8 @@ void submit_bio_noacct(struct bio *bio)
+
+     if (should_fail_bio(bio))
+         goto end_io;
+-    bio_check_ro(bio);
++    if (unlikely(bio_check_ro(bio)))
++        goto end_io;
+     if (!bio_flagged(bio, BIO_REMAPPED)) {
+         if (unlikely(bio_check_eod(bio)))
+             goto end_io;
